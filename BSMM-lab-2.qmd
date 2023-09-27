@@ -33,6 +33,24 @@ library(DataExplorer) #
 
 The `the_tate` dataset has \_\_\_ unique artists who worked from \_\_\_ to \_\_\_. The works were acquired between the years \_\_\_ and \_\_\_.
 
+```{r}
+the_tate |> dplyr::summarize(
+  artist=length(unique(artist)),
+  min_year=min(year,na.rm =TRUE),
+  max_year=max(year,na.rm = TRUE),
+  min_acquisitionYear=min(acquisitionYear,na.rm=TRUE),
+  max_acquisitionYear=max(acquisitionYear,na.rm=TRUE),
+)
+```
+
+```{r}
+the_tate |> DataExplorer::introduce()
+```
+
+```{r}
+the_tate |> DataExplorer::plot_missing()
+```
+
 ### Exercise 2
 
 How number of works with missing dates is \_\_.
@@ -43,7 +61,31 @@ It would require resolving missing year data for only \_\_ artists resolve resol
 
 The missing year data likely to be classified as \_\_\_\_.
 
+```{r}
+the_tate |> dplyr::filter(is.na(year)) |> dplyr::distinct(artist)
+```
+
+```{r}
+the_tate |> dplyr::filter(is.na(year)) |> dplyr::distinct(title)
+```
+
+```{r}
+the_tate |> dplyr::filter(is.na(year))
+
+#table(qaz$artist) |> tibble::tibble()
+```
+
 ### Exercise 3
+
+```{r}
+the_tate |> dplyr::group_by(artist) |>
+dplyr::mutate(n=dplyr::n()) |>
+  dplyr::select(artist,n) |> 
+  dplyr::arrange(desc(n)) |>
+  dplyr::distinct() |> 
+  dplyr::ungroup() |> 
+  dplyr::slice(c(1,10))
+```
 
 The artist with the most works in the Tate collection is \_\_\_.
 
@@ -51,13 +93,89 @@ The artist with the tenth-most works in the Tate collection is \_\_\_.
 
 ### Exercise 4
 
+```{r}
+the_tate %>%
+  dplyr::group_by(artist) %>%
+  dplyr::mutate(works_count = dplyr::n()) %>%
+  dplyr::select(artist, works_count) %>%
+  dplyr::arrange(desc(works_count)) %>%
+  dplyr::distinct() %>%
+  dplyr::ungroup() %>%
+  dplyr::mutate(
+    total = sum(works_count),
+    pct = works_count / total
+  )
+```
+
 The artist with the greatest number of works in the Tate collection represent \_\_\_% of the total number of works
 
 ### Exercise 5
 
+```{r}
+library(dplyr)
+
+# Select artist and title columns and count the number of rows
+count_all_rows <- the_tate %>%
+  select(artist, title) %>%
+  nrow()
+
+count_all_rows
+```
+
+```{r}
+# Select artist and title columns and count distinct pairs
+distinct_artist_title <- the_tate %>%
+  select(artist, title) %>%
+  distinct() %>%
+  nrow()
+
+distinct_artist_title
+```
+
+```{r}
+# Calculate the number of duplicated artist-title pairs
+duplicated_count <- count_all_rows - distinct_artist_title
+
+duplicated_count
+```
+
 There are \_\_ duplicate artist-title pairs
 
 ### Exercise 6
+
+```{r}
+library(dplyr)
+
+# Calculate the area of each artwork and add it as a new column
+the_tate <- the_tate %>%
+  mutate(area = width * height)  # Assuming width and height columns exist
+
+# Select artist, title, and area columns, and remove rows with NA values
+selected_data <- the_tate %>%
+  select(artist, title, area) %>%
+  drop_na()
+
+# Check if there is valid data after filtering and selecting
+if (nrow(selected_data) > 0) {
+  # Order the works by area in ascending order
+  ordered_data <- selected_data %>%
+    arrange(area)
+
+  # Find the largest artworks
+  largest_artworks <- ordered_data %>%
+    slice_tail(n = 1)
+
+  # Find the smallest artworks
+  smallest_artworks <- ordered_data %>%
+    slice_head(n = 1)
+  
+  # Print the results
+  largest_artworks
+  smallest_artworks
+} else {
+  cat("No valid data found after filtering and selecting.")
+}
+```
 
 The artist with the largest work in the tate collection is \_\_\_
 
@@ -65,15 +183,111 @@ The artist with the smallest work in the collection is \_\_\_. The smallest work
 
 ### Exercise 7
 
+```{r}
+library(dplyr)
+
+# Left join the_tate and the_tate_artists
+the_tate <- left_join(the_tate, the_tate_artists, by = c("artistId" = "id"))
+
+# Drop rows with NA gender values
+the_tate <- the_tate %>%
+  filter(!is.na(gender))
+# Group by gender
+grouped_data <- the_tate %>%
+  group_by(gender)
+
+# Show the resulting table
+grouped_data
+```
+
 ...
 
 ### Exercise 8
+
+```{r}
+library(readr)
+library(dplyr)
+
+# Read the historical price data with explicit date format
+spx_data <- read_csv(
+  "SPX_HistoricalData_1692322132002.csv",
+  col_types = cols(
+    Date = col_datetime(format = "%m/%d/%Y"),  # Adjust the format as needed
+    `Close/Last` = col_double(),  # Use backticks for column name
+    .default = col_double()
+  )
+)
+
+# Add a column for the year of the transaction
+spx_data <- spx_data %>%
+  mutate(year = lubridate::year(Date))
+
+# Add a column for daily return (rd) - Using backticks for column name
+spx_data <- spx_data %>%
+  mutate(rd = (`Close/Last` / lag(`Close/Last`)) - 1)
+
+# Add a column for daily return variance
+spx_data <- spx_data %>%
+  mutate(return_variance = rd^2)
+
+# Group by year and compute annual returns and standard deviations
+annual_summary <- spx_data %>%
+  group_by(year) %>%
+  summarize(
+    annual_return = prod(1 + rd) - 1,
+    annual_std_dev = sqrt(sum(return_variance)),
+    .groups = "drop"
+  )
+
+# Show the annual summary
+annual_summary
+```
 
 The annual return in the SPX price in 2020 was \_\_\_%.
 
 The corresponding price volatility was \_\_\_%.
 
 ### Exercise 9
+
+```{r}
+library(dplyr)
+library(gt)
+
+# Calculate the sum of annual returns and the square root of the sum of variances
+total_return <- sum(the-tate-artists$Close_Last)
+total_volatility <- sqrt(sum(the-tate-artists$Close_Last^2))
+
+# Create a gt table
+gt_table <- the-tate-artists %>%
+  mutate(
+    Close_Last = scales::dollar(Close_Last, scale = 1, suffix = " USD")
+  ) %>%
+  gt() %>%
+  tab_style(
+    style = cells_text(columns = vars(Close_Last)),
+    locations = cells_title()
+  ) %>%
+  fmt_currency(
+    columns = vars(Close_Last),
+    currency = "USD",
+    use_seps = FALSE
+  ) %>%
+  summary_rows(
+    summary_fun = list(
+      ~ total_return,  # Sum of annual returns
+      ~ total_volatility  # Square root of the sum of variances for volatility
+    ),
+    columns = vars(Close_Last),
+    use_seps = FALSE
+  ) %>%
+  tab_spanner(
+    label = "Summary Statistics",
+    columns = vars(Close_Last)
+  )
+
+# Print the formatted table
+gt_table
+```
 
 The period volatility was \_\_\_.\_%
 
